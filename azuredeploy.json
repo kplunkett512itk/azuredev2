@@ -1,130 +1,142 @@
-{
+ {
   "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "Region_Number": {
+    "vmName": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 1,
+      "minLength": 1
+    },
+    "vmAdminUserName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vmAdminPassword": {
+      "type": "securestring"
+    },
+    "vmWindowsOSVersion": {
       "allowedValues": [
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6"
-      ]
+        "2008-R2-SP1",
+        "2012-Datacenter",
+        "2012-R2-Datacenter",
+        "2016-Datacenter",
+        "Windows-Server-Technical-Preview"
+      ],
+      "defaultValue": "2016-Datacenter",
+      "type": "string"
     },
-    "Region_Name": {
+    "storageAccountName": {
       "type": "string",
-      "allowedValues": [
-        "cchn",
-        "psgp",
-        "enld"
-      ]
+      "defaultValue": "rg3087128proddiag"
     },
-    "Second_Octet": {
+    "storageAccountResourceGroup": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 3
+      "defaultValue": "rg_3087128_prod"
     },
-    "Third_Octet": {
+    "virtualNetworkName": {
       "type": "string",
-      "minLength": 1,
-      "maxLength": 3
+      "defaultValue": "cchn3azvnt087128"
     },
-    "Second_Octet_Name": {
+    "virtualNetworkResourceGroup": {
       "type": "string",
-      "minLength": 3,
-      "maxLength": 3
-    },
-    "Third_Octet_Name": {
-      "type": "string",
-      "minLength": 3,
-      "maxLength": 3
-    },
-    "templatestorageType": {
-      "type": "string",
-      "defaultValue": "Standard_LRS",
-      "allowedValues": [
-        "Standard_LRS"
-      ]
-    },
-    "templateStorageNamePrefix": {
-      "type": "string",
-      "minLength": 1,
-      "defaultValue": "templatestorage"
+      "defaultValue": "rg_3087128_net"
     }
-
+ 
   },
   "variables": {
-    "networkSuffix": "_net",
-    "vnetMid": "azvnt",
-    "vnet_Name": "[concat(parameters('Region_Name'),parameters('Region_Number'),variables('vnetMid'),parameters('Second_Octet_Name'),parameters('Third_Octet_Name'))]",
-    "Forth_Octet_Prefix": "0/24",
-    "Forth_Octet_Subnet1": "0/27",
-    "Forth_Octet_Subnet2": "128/25",
-    "Dash": "-",
-    "Subnet2_Name_Suffix": "-128_25",
-    "resourceGroup": "[concat(string('rg_'),parameters('Region_Number'),parameters('Second_Octet'),parameters('Third_Octet'),variables('networkSuffix'))]",
-    "vnet-templatePrefix": "[concat(string('10.'),parameters('Second_Octet'),string('.'),parameters('Third_Octet'),string('.'),variables('Forth_Octet_Prefix'))]",
-    "vnet-templateSubnet1Name": "GatewaySubnet",
-    "vnet-templateSubnet1Prefix": "[concat(string('10.'),parameters('Second_Octet'),string('.'),parameters('Third_Octet'),string('.'),variables('Forth_Octet_Subnet1'))]",
-    "vnet-templateSubnet2Name": "[concat(string('sn_10-'),parameters('Second_Octet'),variables('Dash'),parameters('Third_Octet'),variables('Subnet2_Name_Suffix'))]",
-    "vnet-templateSubnet2Prefix": "[concat(string('10.'),parameters('Second_Octet'),string('.'),parameters('Third_Octet'),string('.'),variables('Forth_Octet_Subnet2'))]",
-    "templatestorageType": "Standard_LRS",
-    "storage_Name_Suffix": "genstdlrs000",
-    "storage_Account_Name": "[concat(string('t'),parameters('Region_Number'),parameters('Second_Octet_Name'),parameters('Third_Octet_Name'),variables('storage_Name_Suffix'))]"
-
+    "vmImagePublisher": "MicrosoftWindowsServer",
+    "vmImageOffer": "WindowsServer",
+    "vmOSDiskName": "[concat(parameters('vmName'), '_osdisk')]",
+    "vmVmSize": "Standard_D2_v2",
+    "vmVnetID": "[resourceId(parameters('virtualNetworkResourceGroup'), 'Microsoft.Network/virtualNetworks', parameters('virtualNetworkName'))]",
+    "vmSubnetRef": "[concat(variables('vmVnetID'), '/subnets/', 'sn_10-87-128-128_25')]",
+    "vmStorageAccountContainerName": "vhds",
+    "vmNicName": "[concat(parameters('vmName'), '-nic')]",
+    "vm_avset": "as_3087128_prod_001",
+    "location":  "eastasia"
 
   },
   "resources": [
     {
-      "name": "[variables('vnet_Name')]",
-      "type": "Microsoft.Network/virtualNetworks",
-      "location": "[resourceGroup().location]",
+      "name": "[variables('vmNicName')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "location": "eastasia",
       "apiVersion": "2016-03-30",
       "dependsOn": [],
       "tags": {
-        "displayName": "vNet"
+        "displayName": "vbNic"
       },
       "properties": {
-        "addressSpace": {
-          "addressPrefixes": [
-            "[variables('vnet-templatePrefix')]"
-          ]
-        },
-        "subnets": [
+        "ipConfigurations": [
           {
-            "name": "[variables('vnet-templateSubnet1Name')]",
+            "name": "ipconfig1",
             "properties": {
-              "addressPrefix": "[variables('vnet-templateSubnet1Prefix')]"
-            }
-          },
-          {
-            "name": "[variables('vnet-templateSubnet2Name')]",
-            "properties": {
-              "addressPrefix": "[variables('vnet-templateSubnet2Prefix')]"
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[variables('vmSubnetRef')]"
+              }
             }
           }
         ]
       }
     },
     {
-      "name": "[variables('storage_Account_Name')]",
-      "type": "Microsoft.Storage/storageAccounts",
-      "location": "[resourceGroup().location]",
-      "apiVersion": "2016-01-01",
-      "sku": {
-        "name": "[variables('templatestorageType')]"
-      },
-      "dependsOn": [],
+      "type": "Microsoft.Compute/availabilitySets",
+      "name": "[variables('vm_avset')]",
+      "apiVersion": "2016-04-30-preview",
+      "location": "[variables('location')]",
+      "properties": {
+        "platformFaultDomainCount": 2,
+        "platformUpdateDomainCount": 5,
+        "managed": true
+      }
+    },
+    {
+      "name": "[parameters('vmName')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "location": "eastasia",
+      "apiVersion": "2017-03-30",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicName'))]"
+      ],
       "tags": {
-        "displayName": "Storage"
+        "displayName": "vb"
       },
-      "kind": "Storage"
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[variables('vmVmSize')]"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets',variables('vm_avset'))]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmName')]",
+          "adminUsername": "[parameters('vmAdminUserName')]",
+          "adminPassword": "[parameters('vmAdminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('vmImagePublisher')]",
+            "offer": "[variables('vmImageOffer')]",
+            "sku": "[parameters('vmWindowsOSVersion')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "createOption": "FromImage",
+            "name": "[variables('vmOSDiskName')]",
+            "managedDisk": {
+              "storageAccountType": "Standard_LRS"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNicName'))]"
+            }
+          ]
+        }
+      }
     }
-
   ]
-
+   
 }
